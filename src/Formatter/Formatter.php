@@ -2,9 +2,12 @@
 
 namespace KunicMarko\GraphQLTest\Formatter;
 
+use KunicMarko\GraphQLTest\Type\ArrayObjectType;
 use KunicMarko\GraphQLTest\Type\TypeInterface;
+use function implode;
 use function is_array;
 use function is_string;
+use function sprintf;
 
 /**
  * @author Marko Kunic <kunicmarko20@gmail.com>
@@ -17,25 +20,51 @@ abstract class Formatter implements FormatterInterface
             return '';
         }
 
-        $formattedItems = [];
+        return sprintf($this->getMainFormat(), implode($this->getImplodeGlue(), $this->collectChild($items)));
+    }
 
-        foreach ($items as $key => $value) {
-            $formattedItems[] = $this->formatChild($key, $value);
+    abstract public function getChildArrayFormat(): string;
+
+    abstract public function getChildDefaultFormat(): string;
+
+    abstract public function getChildStringFormat(): string;
+
+    abstract public function getImplodeGlue(): string;
+
+    abstract public function getMainFormat(): string;
+
+    protected function collectChild(array $value): array
+    {
+        $items = [];
+
+        foreach ($value as $key => $childValue) {
+            $items[] = $this->formatChild($key, $childValue);
         }
 
-        return sprintf($this->getMainFormat(), implode($this->getImplodeGlue(), $formattedItems));
+        return $items;
     }
 
     private function formatChild($identifier, $value): string
     {
-        if (is_array($value)) {
+        if ($value instanceof ArrayObjectType) {
             $items = [];
 
-            foreach ($value as $key => $childValue) {
-                $items[] = $this->formatChild($key, $childValue);
+            foreach ($value->getValue() as $item) {
+                $items[] = sprintf(
+                    $this->getObjectFormat(),
+                    implode($this->getImplodeGlue(), $this->collectChild($item))
+                );
             }
 
-            return sprintf($this->getChildArrayFormat(), $identifier, implode($this->getImplodeGlue(), $items));
+            return sprintf($this->getArrayFormat(), $identifier, implode($this->getImplodeGlue(), $items));
+        }
+
+        if (is_array($value)) {
+            return sprintf(
+                $this->getChildArrayFormat(),
+                $identifier,
+                implode($this->getImplodeGlue(), $this->collectChild($value))
+            );
         }
 
         if ($value instanceof TypeInterface) {
@@ -49,9 +78,13 @@ abstract class Formatter implements FormatterInterface
         return sprintf($this->getChildDefaultFormat(), $identifier, $value);
     }
 
-    abstract public function getMainFormat(): string;
-    abstract public function getImplodeGlue(): string;
-    abstract public function getChildArrayFormat(): string;
-    abstract public function getChildStringFormat(): string;
-    abstract public function getChildDefaultFormat(): string;
+    private function getArrayFormat(): string
+    {
+        return '%s: [%s]';
+    }
+
+    private function getObjectFormat(): string
+    {
+        return '{ %s }';
+    }
 }
